@@ -1,0 +1,460 @@
+<!-- Use the latest version of Font Awesome! -->
+<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css">
+<script>
+/*
+  Media search plugin. - https://github.com/LouisT/KiwiIRC-MediaSearch
+
+  [API Keys]
+  YouTube:      https://developers.google.com/youtube/v3/getting-started
+  Vimeo:        https://developer.vimeo.com/apps
+  SoundCloud:   http://soundcloud.com/you/apps
+*/
+var MediaSearch = {
+    // Your API keys. If no key is required, set as (Boolean)true (see Spotify).
+    // A value of false will completely disable the service.
+    access: {
+       SoundCloud: '',
+       Vimeo: '',
+       YouTube: '',      
+       Mixcloud: true,
+       Spotify: true,
+       Twitch: true
+    },
+
+    // Enabled services by default.
+    status: {
+       Mixcloud: false,
+       SoundCloud: false,
+       Spotify: true,
+       Twitch: false,
+       Vimeo: false,
+       YouTube: true,
+    },
+
+    // Autocomplete in the search input.
+    autocomplete: {
+        enabled: true,
+        // How fast to update the suggestions.
+        speed: 500,
+    },
+}
+</script>
+<style>
+    #kiwi .ms-wrapper {
+        color: white;
+        position: absolute;
+        background: #3c3b37;
+        padding: 5px;
+        width: 35%;
+        height: 45%;
+        min-width: 383px;
+        min-height: 300px;
+        overflow-y: scroll;
+        border-top-left-radius: 8px;
+        max-width: 509px;
+        z-index: 100;
+    }
+    #kiwi .ms-wrapper .close {
+        float: right;
+    }
+    #kiwi .ms-wrapper .menu {
+        cursor: pointer;
+        padding: 5px;
+    }
+    #kiwi .ms-wrapper .menu:hover {
+        color: #88C56A;
+    }
+    #kiwi .ms-wrapper .msin {
+        width: 50%;
+    }
+    #kiwi .ms-wrapper hr {
+        margin: 5px;
+    }
+    #kiwi .ms-wrapper .break {
+        margin: 0;
+        margin-top: 5px;
+        margin-bottom: 5px;
+        color: black;
+    }
+    #kiwi .ms-wrapper .list {
+        padding-bottom: 5px;
+    }
+    #kiwi .ms-wrapper .list .thumbnail {
+        width: 120px;
+        height: 90px;
+        position: relative;
+        margin-right: 5px;
+        margin-bottom: 5px;
+    }
+    #kiwi .ms-wrapper .list .thumbnail img {
+        background-color: #949993;
+        width: 120px;
+        height: 90px;
+    }
+    #kiwi .ms-wrapper .list .thumbnail .icon {
+        position: absolute;
+        bottom: 0;
+	left: 0;
+        margin-bottom: 5px;
+        color: #88C56A;
+    }
+    #kiwi .ms-wrapper .list .toggle {
+        margin: 5px !important;
+    }
+    #kiwi .ms-wrapper .list .share {
+        float: right;
+        display: inline-block;
+        padding-right: 5px;
+    }
+    #kiwi .ms-wrapper .list h4 {
+        margin-bottom: 0px;
+        font-size: 18px;
+        width: 50%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: inline-block;
+    }
+    #kiwi .ms-wrapper .date {
+        font-size: 10px;
+        float: right;
+        margin-right: 10px;
+    }
+    #kiwi .ms-wrapper .list div {
+        width: 100%;
+        display: inline-block;
+    }
+    .tooltip:hover:after {
+        border: 1px solid;
+        padding: 6px;
+        margin-bottom: 3px;
+        background: #000;
+        content: attr(data-title);
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        z-index: 101;
+     }
+</style>
+<script src="//apis.google.com/js/client.js"></script>
+<script>
+(function (global, undefined) {
+    var $mediabox = $($('#tmpl_mediasearch').html()).hide().appendTo($('#kiwi'));
+        control = kiwi.components.ControlInput();
+    control.addPluginIcon($('<a title="Media Search"><i class="fa fa-search"></i></a>').click(function () {
+        $mediabox.show().css({bottom: ($('.controlbox').outerHeight())+'px', right: 0});
+    }));
+    if (global['MediaSearch'].status.YouTube) {
+       global['MediaSearch'].status.YouTube = false;
+       (function hasGapi (gapiCounter) {
+           if (gapiCounter++ >= 100) {
+               console.log('Failed to load gapi! "YTS" plugin nonfunctional.');
+             } else if (global['gapi'] && global['gapi'].client) {
+               global['gapi'].client.setApiKey(global['MediaSearch'].access.YouTube);
+               global['gapi'].client.load("youtube", "v3", function () {
+                   global['MediaSearch'].status.YouTube = true;
+                   $('.ms-wrapper .list .toggle.fa-youtube').css('color','#88C56A');
+               });
+            } else { setTimeout(function () { hasGapi(gapiCounter); }, 100); };
+        })(0);
+    }
+    $(global).resize(function () {
+        $mediabox.hide();
+    });
+    $('.ms-wrapper .undo').click(function () {
+        $('.ms-wrapper .msin').val('');
+        $('.ms-wrapper .list').html('');
+    });
+    $('.ms-wrapper .close').click(function () {
+        $mediabox.hide();
+        $('.ms-wrapper .undo').click();
+    });
+    $('.ms-wrapper .msin').keyup(function (event) {
+        if (event.keyCode === 13) {
+           $('.ms-wrapper .search').click();
+        }
+    }); 
+    $.each(_.keys(global['MediaSearch'].status), function (index, value) {
+        if (!global['MediaSearch'].access[value]) {
+           delete global['MediaSearch'].status[value];
+        }
+    });
+    $('.ms-wrapper .settings').click(function () {
+        var $tmp = $('<center />');
+        $tmp.html('<h4>Search Providers</h4><br />');
+        $.each(_.keys(global['MediaSearch'].status), function (index, value) {
+            $elm = $('<i class="toggle fa fa-'+value.toLowerCase()+' fa-3x" title="'+value+'"></i>');
+            $elm.click(function () {
+                global['MediaSearch'].status[value] = !global['MediaSearch'].status[value];
+                $(this).css('color',(global['MediaSearch'].status[value]?'#88C56A':'#949993'));
+            }).css('color',(global['MediaSearch'].status[value]?'#88C56A':'#949993'));
+            $tmp.append($elm);
+        });
+        $('.ms-wrapper .list').html($tmp);
+    });
+    if (!global['MediaSearch'].autocomplete.enabled) {
+       console.log('Autocomplete is not enabled!');
+     } else if (!('options' in document.createElement('datalist'))) {
+       console.log('Browser does not support datalist; Can not use Autocomplete!');
+     } else {
+       $('.ms-wrapper .msin').keyup(_.debounce(function (event) {
+           if (event.keyCode !== 13) {
+              $val = $('.ms-wrapper .msin').val();
+              if ((!$val || 0 === $val.length || /^\s*$/.test($val))) {
+                 return;
+              }
+              $.ajax({
+                  url: ['https://suggestqueries.google.com/complete/search?hl=en&ds=yt&client=youtube',
+                        '&hjson=t&cp=1&q=', $val, '&format=5&alt=json&callback=?'].join(''),
+                  dataType: 'jsonp',
+               }).done(function (data) {
+                  $dataset = $('.ms-wrapper #MediaSearch').empty();
+                  $.map(data[1], function (item) {
+                      $dataset.append($('<option value="'+item[0]+'">'));
+                  });
+                  $dataset.append($('<option />'));
+               });
+           }
+       }, (global['MediaSearch'].autocomplete.speed||500)));
+    }
+    $('.ms-wrapper .search').click(function () {
+        $('.ms-wrapper #MediaSearch').empty();
+        $('.ms-wrapper .list').empty();
+        $val = $('.ms-wrapper .msin').val();
+        if (!_.some(_.values(global['MediaSearch'].status))) {
+           return $('.ms-wrapper .list').html('<center>Please enable a search provider in options.</center>');
+         } else if ((!$val || 0 === $val.length || /^\s*$/.test($val))) {
+           return $('.ms-wrapper .list').html('<center>Search must not be empty.</center>');
+        }
+
+        // YouTube
+        if (global['MediaSearch'].status.YouTube) {
+           global['gapi'].client.youtube.search.list({
+               part: "snippet",
+               type: "video",
+               q: $val,
+               maxResults: 15,
+               order: "viewCount"
+            }).execute(function (res) { 
+               if (res.error || res.items.length <= 0) {
+                  noResults('YouTube');
+                } else {
+                  var html = [];
+                  $.each(res.result.items, function (index, item) {
+                      var title = item.snippet.title,
+                          vid = item.id.videoId;
+                      html.push([
+                          '<span class="thumbnail youtube tooltip" data-title="', title, '" data-ytid="',
+                          vid, '"><img src="https://i.ytimg.com/vi/', vid, '/default.jpg" />',
+                          '<div class="icon"><i class="fa fa-youtube fa-2x"></i></div></span>'
+                      ].join(''));
+                  });
+                  $(".ms-wrapper .list").append(html.join(''));
+                  $('.ms-wrapper .list .thumbnail.youtube').click(function () {
+                      var area = $('#kiwi .controlbox textarea');
+                      area.val(area.val().trim()+' https://youtu.be/'+$(this).data('ytid'));
+                  });
+               }
+           });
+        }          
+
+        // Spotify
+        if (global['MediaSearch'].status.Spotify) {
+           $.ajax({
+               url: ['https://api.spotify.com/v1/search?q=', encodeURIComponent($val), '&type=track&limit=15'].join(''),
+               dataType: 'json',
+            }).done(function (json) {
+               if (json.tracks && json.tracks.items.length >= 1) {
+                  var html = [];
+                  $.each(json.tracks.items, function (index, item) {
+                      if (item.external_urls.spotify) {
+                         var title = (item.artists?item.artists[0].name+' - ':'')+(item.name?item.name:'Unknown!'),
+                             img = item.album.images.sort(function(a, b) {
+                                 return a.width - b.width;
+                             })[0].url||null;
+                         html.push([
+                             '<span class="thumbnail spotify tooltip" data-title="', title, '" data-link="',
+                             item.external_urls.spotify, '"><img src="', img, '" />',
+                             '<div class="icon"><i class="fa fa-spotify fa-2x"></i></div></span>'
+                         ].join(''));
+                      }
+                  });
+                  $(".ms-wrapper .list").append(html.join(''));
+                  $('.ms-wrapper .list .thumbnail.spotify').click(function () {
+                      var area = $('#kiwi .controlbox textarea');
+                      area.val(area.val().trim()+' '+$(this).data('link'));
+                  });
+                } else {
+                  noResults('Spotify');
+               }
+           }).fail(function () {
+               noResults('Spotify');
+           });
+        }
+
+        // Vimeo
+        if (global['MediaSearch'].status.Vimeo) {
+           $.ajax({
+               url: ['https://api.vimeo.com/videos?query=', encodeURIComponent($val), '&limit=15',
+                     '&access_token=', global['MediaSearch'].access.Vimeo].join(''),
+               dataType: 'json',
+            }).done(function (json) {
+               if (json.data && json.data.length >= 1) {
+                  var html = [];
+                  $.each(json.data, function (index, item) {
+                      if (item.link) {
+                         var img = item.pictures.sizes.sort(function(a, b) {
+                                 return a.width - b.width;
+                             })[0].link||null;
+                         html.push([
+                             '<span class="thumbnail vimeo tooltip" data-title="', item.name, '" data-link="', item.link, '"><img src="',
+                             img, '" /><div class="icon"><i class="fa fa-vimeo fa-2x"></i></div></span>'
+                         ].join(''));
+                      }
+                  });
+                  $(".ms-wrapper .list").append(html.join(''));
+                  $('.ms-wrapper .list .thumbnail.vimeo').click(function () {
+                      var area = $('#kiwi .controlbox textarea');
+                      area.val(area.val().trim()+' '+$(this).data('link'));
+                  });
+                } else {
+                  noResults('Vimeo');
+               }
+           }).fail(function () { 
+               noResults('Vimeo');
+           }); 
+        }
+
+        // SoundCloud
+        if (global['MediaSearch'].status.SoundCloud) {
+           $.ajax({
+               url: ['https://api.soundcloud.com/tracks.json?q=', encodeURIComponent($val), '&limit=15',
+                     '&client_id=', global['MediaSearch'].access.SoundCloud].join(''),
+               dataType: 'json',
+            }).done(function (json) {
+               if (json && json.length >= 1) {
+                  var html = [];
+                  $.each(json, function (index, item) {
+                      if (item.permalink_url) {
+                         var img = item[(item.artwork_url?'artwork_url':'waveform_url')]||null;
+                         html.push([
+                             '<span class="thumbnail soundcloud tooltip" data-title="', item.title, '" data-link="', item.permalink_url,
+                             '"><img src="', img, '" /><div class="icon"><i class="fa fa-soundcloud fa-2x"></i></div></span>'
+                         ].join(''));
+                      }
+                  });
+                  $(".ms-wrapper .list").append(html.join(''));
+                  $('.ms-wrapper .list .thumbnail.soundcloud').click(function () {
+                      var area = $('#kiwi .controlbox textarea');
+                      area.val(area.val().trim()+' '+$(this).data('link'));
+                  });
+                } else {
+                  noResults('SoundCloud');
+               }
+           }).fail(function () { 
+               noResults('SoundCloud');
+           }); 
+        }
+
+        // Twitch
+        if (global['MediaSearch'].status.Twitch) {
+           $.ajax({
+               url: ['https://api.twitch.tv/kraken/search/channels?q=', encodeURIComponent($val), '&limit=15'].join(''),
+               dataType: 'json',
+            }).done(function (json) {
+               if (json.channels && json.channels.length >= 1) {
+                  var html = [];
+                  $.each(json.channels, function (index, item) {
+                      if (item.url) {
+                         var title = item.display_name+' - '+item.game,
+                             img = item[(item.video_banner?'video_banner':'logo')]||null;
+                         html.push([
+                             '<span class="thumbnail twitch tooltip" data-title="', title, '" data-link="', item.url,
+                             '"><img src="', img, '" /><div class="icon"><i class="fa fa-twitch fa-2x"></i></div></span>'
+                         ].join(''));
+                      }
+                  });
+                  $(".ms-wrapper .list").append(html.join(''));
+                  $('.ms-wrapper .list .thumbnail.twitch').click(function () {
+                      var area = $('#kiwi .controlbox textarea');
+                      area.val(area.val().trim()+' '+$(this).data('link'));
+                  });
+                } else {
+                  noResults('Twitch');
+               }
+           }).fail(function () {
+               noResults('Twitch');
+           });
+        }
+
+        // Mixcloud
+        if (global['MediaSearch'].status.Mixcloud) {
+           $.ajax({
+               url: ['https://api.mixcloud.com/search/?q=', encodeURIComponent($val), '&type=cloudcast'].join(''),
+               dataType: 'json',
+            }).done(function (json) {
+               if (json.data && json.data.length >= 1) {
+                  var html = [];
+                  $.each(json.data.slice(0, 15), function (index, item) {
+                      if (item.url) {
+                         var img = item.pictures[(item.pictures.medium?'medium':'large')]||null;
+                         html.push([
+                             '<span class="thumbnail mixcloud tooltip" data-title="', item.name, '" data-link="', item.url,
+                             '"><img src="', img, '" /><div class="icon"><i class="fa fa-mixcloud fa-2x"></i></div></span>'
+                         ].join(''));
+                      }
+                  });
+                  $(".ms-wrapper .list").append(html.join(''));
+                  $('.ms-wrapper .list .thumbnail.mixcloud').click(function () {
+                      var area = $('#kiwi .controlbox textarea');
+                      area.val(area.val().trim()+' '+$(this).data('link'));
+                  });
+                } else {
+                  noResults('Mixcloud');
+               }
+           }).fail(function () {
+               noResults('Mixcloud');
+           });
+        }
+
+        function noResults ($provider) {
+                 $(".ms-wrapper .list").prepend('<h6>No results from: '+$provider+'</h6>');
+        }
+    });
+
+    /* oEmbed solutions for missing embeds. */
+    var oEmbeds = [
+        // XXX: This doesn't match ALL Vimeo endpoints. See: https://developer.vimeo.com/apis/oembed
+        ['Vimeo',/^https?:\/\/vimeo.com\/(\d+)/i,'https://vimeo.com/api/oembed.json?maxwidth=480&maxheight=270&url=','video'],
+        ['Mixcloud',/https?:\/\/(www.)?mixcloud.com\/(.[^\/]+)\/(.+)/i,'https://www.mixcloud.com/oembed/?callback=?&url=','rich']
+    ]
+    $.each(oEmbeds, function (index, oembed) {
+        kiwi.addMediaMessageType(function(url) {
+            return oembed[1].test(url);
+         },function (url) {
+            var $elm = $('<i class="fa fa-spinner fa-spin fa-3x"></i>');
+            $.getJSON(oembed[2]+url).done(function (data) {
+                if (data.type === oembed[3] && data.html) {
+                   $elm.replaceWith($(data.html));
+                 } else {
+                  $elm.replaceWith($('<h6>Invalid response from '+oembed[0]+'!</h6>'));
+                }
+             }).fail(function () {
+                $elm.replaceWith($('<h6>Could not connect to '+oembed[0]+'!</h6>'));
+            });
+            return $elm;
+        });
+    });
+})(window);
+</script>
+<script type="text/html" id="tmpl_mediasearch">
+ <div class="ms-wrapper">
+   <input class="msin" list="MediaSearch" placeholder="Media Search" />
+   <i class="search menu fa fa-search"></i>
+   <i class="undo menu fa fa-undo"></i>
+   <i class="settings menu fa fa-cog"></i>
+   <i class="close menu fa fa-times"></i><hr class="break" />
+   <div class="list"></div>
+   <datalist id="MediaSearch"></datalist>
+ </div>
+</script>
