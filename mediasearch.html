@@ -49,7 +49,7 @@ var MediaSearch = {
         height: 45%;
         min-width: 383px;
         min-height: 300px;
-        overflow-y: scroll;
+        overflow: hidden;
         border-top-left-radius: 8px;
         max-width: 509px;
         z-index: 100;
@@ -78,6 +78,10 @@ var MediaSearch = {
     }
     #kiwi .ms-wrapper .list {
         padding-bottom: 5px;
+        overflow-y: scroll;
+        z-index: -5;
+        height: 88%;
+        overflow-x: hidden;
     }
     #kiwi .ms-wrapper .list .thumbnail {
         width: 120px;
@@ -124,7 +128,7 @@ var MediaSearch = {
         width: 100%;
         display: inline-block;
     }
-    .tooltip:hover:after {
+    #kiwi .ms-wrapper .list .tooltip:hover:after {
         border: 1px solid;
         padding: 6px;
         margin-bottom: 3px;
@@ -449,12 +453,14 @@ var MediaSearch = {
 </script>
 <script type="text/html" id="tmpl_mediasearch">
  <div class="ms-wrapper">
+  <span class="header">
    <input class="msin" list="MediaSearch" placeholder="Media Search" />
    <i class="search menu fa fa-search"></i>
    <i class="undo menu fa fa-undo"></i>
    <i class="settings menu fa fa-cog"></i>
    <i class="close menu fa fa-times"></i><hr class="break" />
-   <div class="list"></div>
-   <datalist id="MediaSearch"></datalist>
+  </span>
+  <div class="list"></div>
+  <datalist id="MediaSearch"></datalist>
  </div>
 </script>
