@@ -5,12 +5,16 @@ This plugin allows users to search different media providers directly from [Kiwi
 ![Example](https://github.com/LouisT/KiwiIRC-MediaSearch/blob/master/assets/KiwiIRC-MediaSearch.gif)
 
 #### Providers:
-* Mixcloud
-* SoundCloud (API key required - http://soundcloud.com/you/apps)
-* Spotify
-* Twitch
-* Vimeo (API key required - https://developer.vimeo.com/apps)
-* YouTube (API key required - https://developers.google.com/youtube/v3/getting-started)
+* 500px            - https://500px.com/settings/applications
+* Instagram        - https://www.instagram.com/developer/
+* Last.fm          - http://www.last.fm/api
+* Mixcloud         - https://www.mixcloud.com/developers/
+* SoundCloud       - http://soundcloud.com/you/apps
+* Spotify          - https://developer.spotify.com/web-api/
+* Stack Overflow   - https://api.stackexchange.com/docs
+* Twitch           - https://github.com/justintv/Twitch-API
+* Vimeo            - https://developer.vimeo.com/apps
+* YouTube          - https://developers.google.com/youtube/v3/getting-started
 
 
 Usage
