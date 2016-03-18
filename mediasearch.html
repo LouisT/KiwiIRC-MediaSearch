@@ -202,13 +202,17 @@ var MediaSearch = {
     #kiwi .ms-wrapper .list .ms-providers {
         width: 60%;
     }
+    #kiwi .ms-wrapper .list h6 {
+        margin-bottom: 0px;
+    }
     #kiwi .ms-wrapper .list #ms-limit {
         background: transparent none repeat scroll 0% 0%;
         color: rgb(148, 153, 147);
         -webkit-box-shadow: none;
         box-shadow: none;
-        font-size: 35px;
-        width: 15%;
+        font-size: 20px;
+        width: 10%;
+        padding-top: 0px;
     }
     #kiwi .ms-wrapper .list .tooltip:hover:after {
         font-size: 16px;
@@ -280,9 +284,9 @@ var MediaSearch = {
     $('.ms-wrapper .settings').click(function () {
         abortRequests();
         $('.ms-wrapper .list').html([
-            '<center><h4>Search Limit:</h4><br /><input type="number" id="ms-limit" min="', $MS.limit.min,
-            '" max="', $MS.limit.max, '" step="1" value="', $MS.limit.current, '">',
-            '<br /><h4>Search Providers</h4><br /><div class="ms-providers"></div></cemnter>'
+            '<center><h4>Search Providers</h4><br /><div class="ms-providers"></div><br />',
+            '<h6>Search Limit:</h6><input type="number" id="ms-limit" min="', $MS.limit.min,
+            '" max="', $MS.limit.max, '" step="1" value="', $MS.limit.current, '"></center>'
         ].join(''));
         $('#ms-limit').bind('click keyup', function (e) {
             var elm = $(this),
