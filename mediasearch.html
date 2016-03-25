@@ -128,8 +128,19 @@ var MediaSearch = {
     #kiwi .ms-wrapper .menu:hover {
         color: #88C56A;
     }
-    #kiwi .ms-wrapper .msin {
+    #kiwi .ms-wrapper .ms-main {
         width: 50%;
+    }
+    #kiwi .ms-wrapper .list .ms-start {
+        position: absolute;
+        width: 50%;
+        left: 25%;
+        top: 50%;
+        height: 10%;
+        transform: translateX(-25%);
+        -webkit-transform: translateX(-25%);
+        transform: translateY(-50%);
+        -webkit-transform: translateY(-50%);
     }
     #kiwi .ms-wrapper hr {
         margin: 5px;
@@ -237,9 +248,12 @@ var MediaSearch = {
 
     var mediabox = $($('#tmpl_mediasearch').html()).hide().appendTo($('#kiwi')),
         control = kiwi.components.ControlInput(),
-        area =  $('#kiwi .controlbox textarea');
+        area =  $('#kiwi .controlbox textarea'),
+        msstart = '<input class="ms-start" placeholder="Search..." />';
     $MS.__requests = [];
+    $MS.__autocompletes = [];
     $MS.limit.current = ~~($MS.limit.max - ($MS.limit.max - $MS.limit.min) / 2);
+    $('.ms-wrapper .list').html(msstart);
     control.addPluginIcon($('<a title="Media Search"><i class="fa fa-search"></i></a>').click(function () {
         mediabox.show().css({bottom: ($('.controlbox').outerHeight())+'px', right: 0});
     }));
@@ -264,25 +278,23 @@ var MediaSearch = {
         mediabox.hide();
     });
     $('.ms-wrapper .undo').click(function () {
-        $('.ms-wrapper .msin').val('');
-        $('.ms-wrapper .list').html('');
+        cleanMediaSearch();
+        $('.ms-wrapper .ms-main').val('');
+        $('.ms-wrapper .list').html(msstart);
+        bindSearchInputs($MS);
     });
     $('.ms-wrapper .close').click(function () {
         mediabox.hide();
         $('.ms-wrapper .undo').click();
-    });
-    $('.ms-wrapper .msin').keyup(function (event) {
-        if (event.keyCode === 13) {
-           $('.ms-wrapper .search').click();
-        }
     });
     $.each(_.keys($MS.apis), function (idx, key) {
         if (!$MS.apis[key].enabled) {
            $MS.apis[key].status = false;
         }
     });
+    bindSearchInputs($MS);
     $('.ms-wrapper .settings').click(function () {
-        abortRequests();
+        cleanMediaSearch();
         $('.ms-wrapper .list').html([
             '<center><h4>Search Providers</h4><br /><div class="ms-providers"></div><br />',
             '<h6>Search Limit:</h6><input type="number" id="ms-limit" min="', $MS.limit.min,
@@ -319,40 +331,24 @@ var MediaSearch = {
             }
         });
     });
-    if (!$MS.autocomplete.enabled) {
-       console.log('Autocomplete is not enabled!');
-     } else if (!('options' in document.createElement('datalist'))) {
-       console.log('Browser does not support datalist; Can not use Autocomplete!');
-     } else {
-       $('.ms-wrapper .msin').keyup(_.debounce(function (event) {
-           if (event.keyCode !== 13) {
-              var val = $('.ms-wrapper .msin').val();
-              if ((!val || 0 === val.length || /^\s*$/.test(val))) {
-                 return;
-              }
-              abortRequests();
-              $MS.__requests.push($.ajax({
-                  url: ['https://api.bing.com/osjson.aspx?query=', val, '&JsonType=callback&JsonCallback=?'].join(''),
-                  dataType: 'jsonp',
-               }).done(function (data) {
-                  var dataset = $('.ms-wrapper #MediaSearch').empty();
-                  $.map(data[1], function (item) {
-                      dataset.append($('<option value="'+item+'">'));
-                  });
-                  dataset.append($('<option />'));
-              }));
-           }
-       }, ($MS.autocomplete.speed||500)));
-    }
     $('.ms-wrapper .search').click(function () {
-        abortRequests();
-        $('.ms-wrapper #MediaSearch').empty();
+        var val;
+        if (!(val = $('.ms-wrapper .ms-start').val())) {
+           val = $('.ms-wrapper .ms-main').val();
+         } else {
+           $('.ms-wrapper .ms-main').val(val);
+        }
         $('.ms-wrapper .list').empty();
-        var val = $('.ms-wrapper .msin').val();
+        cleanMediaSearch();
+        var failed;
         if (!_.some(_.keys($MS.apis), function (key) { return $MS.apis[key].status; })) {
-           return $('.ms-wrapper .list').html('<center>Please enable a search provider in options.</center>');
+           failed = 'Please enable a search provider in options.';
          } else if ((!val || 0 === val.length || /^\s*$/.test(val))) {
-           return $('.ms-wrapper .list').html('<center>Search must not be empty.</center>');
+           failed = 'Search must not be empty.';
+        }
+        if (failed) {
+           $('.ms-wrapper .list').html(['<center><h4>', failed, '</h4></center>', msstart].join(''));
+           return bindSearchInputs($MS);
         }
 
         // 500px
@@ -496,7 +492,7 @@ var MediaSearch = {
                if (json.tracks && json.tracks.items.length >= 1) {
                   var html = [];
                   $.each(json.tracks.items, function (index, item) {
-                      if (item.external_urls.spotify) {
+                      if (item.external_urls.spotify && (item.album.images && item.album.images.length >= 1)) {
                          var title = (item.artists?item.artists[0].name+' - ':'')+(item.name?item.name:'...'),
                              img = item.album.images.sort(function(a, b) {
                                  return a.width - b.width;
@@ -605,6 +601,11 @@ var MediaSearch = {
                maxResults: $MS.limit.current,
                order: "viewCount"
            });
+           /*
+              The GAPI client does not have an abort funtion for some reason!?
+              This 'fake' one seems to work; Need to have more people try this
+              plugin to find out.
+           */
            req.abort = (function (req) {
                return function () {
                    req.__callback = req.__ABORT = $.noop;
@@ -635,16 +636,58 @@ var MediaSearch = {
     });
 
     // Misc functions used throughout the plugin.
+    function AutoComplete (selectors) {
+             var completes = [];
+             $.each((Array.isArray(selectors)?selectors:[selectors]), function (idx, selector) {
+                 var listid = ['AutoComplete', Date.now(), ~~(Math.random()*Date.now()/1000)].join('-'),
+                     elm;
+                 if ((elm = $(selector).attr('list', listid)).length && !elm.attr('data-autocompleted')) {
+                    var datalist = $('<datalist />').attr('id', listid).attr('data-selector', selector);
+                    elm.attr('data-autocompleted', 'true');
+                    completes.push(datalist);
+                    $('body').append(datalist);
+                    elm.keyup(_.debounce(function (event) {
+                        if (event.keyCode !== 13) {
+                           var val = elm.val();
+                           if ((!val || 0 === val.length || /^\s*$/.test(val))) {
+                              return;
+                           }
+                           cleanMediaSearch();
+                           $MS.__requests.push($.ajax({
+                               url: ['https://api.bing.com/osjson.aspx?query=', val, '&JsonType=callback&JsonCallback=?'].join(''),
+                               dataType: 'jsonp',
+                            }).done(function (data) {
+                               datalist.empty();
+                               $.map(data[1], function (item) {
+                                    datalist.append($('<option value="'+item+'">'));
+                               });
+                               datalist.append($('<option />'));
+                           }));
+                       }
+                    }, (window['MediaSearch'].autocomplete.speed||500)));
+                 }
+             });
+             return completes;
+    }
     function displayResults (provider, html) {
              $('.ms-wrapper .list').append(html.join(''));
              $('.ms-wrapper .list .thumbnail.'+provider).click(function () {
                  area.val(area.val().trim()+' '+$(this).data('link'));
              });
     }
-    function abortRequests () {
+    function cleanMediaSearch () {
              $MS.__requests = $.grep($MS.__requests, function (req) {
                  req.abort();
              });
+             if ($MS.__autocompletes) {
+                $MS.__autocompletes = $.grep($MS.__autocompletes, function (req) {
+                    req.empty();
+                    if (!$(req.attr('data-selector')).length) {
+                       return !req.remove().length;
+                    }
+                    return true;
+                });
+             }
     }
     function onFailure (provider) {
              return function (xhr, msg) {
@@ -652,6 +695,21 @@ var MediaSearch = {
                     $('.ms-wrapper .list').prepend('<h6>No results from: '+provider+'</h6>');
                  }
              }
+    }
+    function bindSearchInputs ($MS) {
+             var selectors = ['.ms-wrapper .ms-main','.ms-wrapper .ms-start'];
+             if (!$MS.autocomplete.enabled) {
+                console.log('Autocomplete is not enabled!');
+              } else if (!('options' in document.createElement('datalist'))) {
+                console.log('Browser does not support datalist; Can not use Autocomplete!');
+              } else {
+                $MS.__autocompletes = $MS.__autocompletes.concat(AutoComplete(selectors));
+             }
+             return $(selectors.join(', ')).keyup(function (event) {
+                 if (event.keyCode === 13) {
+                    $('.ms-wrapper .search').click();
+                 }
+             });
     }
 
     // Embed solutions for missing embeds.
@@ -703,13 +761,12 @@ var MediaSearch = {
 <script type="text/html" id="tmpl_mediasearch">
  <div class="ms-wrapper">
   <span class="header">
-   <input class="msin" list="MediaSearch" placeholder="Media Search" />
+   <input class="ms-main" placeholder="Search..." />
    <i class="search menu fa fa-search"></i>
    <i class="undo menu fa fa-undo"></i>
    <i class="settings menu fa fa-cog"></i>
    <i class="close menu fa fa-times"></i><hr class="break" />
   </span>
   <div class="list"></div>
-  <datalist id="MediaSearch"></datalist>
  </div>
 </script>
