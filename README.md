@@ -40,7 +40,9 @@ License
 Copyright 2016 [Louis T.]
 
 Code licensed under the MIT License: http://opensource.org/licenses/MIT
+
 CSS licensed under the MIT License: http://opensource.org/licenses/MIT
+
 Font licensed under the SIL OFL 1.1 License: https://scripts.sil.org/OFL
 
 [Kiwi IRC]: https://kiwiirc.com/
