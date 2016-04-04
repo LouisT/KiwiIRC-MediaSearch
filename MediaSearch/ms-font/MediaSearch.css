@@ -1,14 +1,16 @@
 /*!
- *  MediaSearch 1.0.0 by @Loueypoo - https://github.com/LouisT/KiwiIRC-MediaSearch/
- *  License - https://github.com/LouisT/KiwiIRC-MediaSearch/blob/master/LICENSE (Font: SIL OFL 1.1, CSS: MIT License)
+ *  MediaSearch 1.0.1 by @Loueypoo - https://github.com/LouisT/KiwiIRC-MediaSearch/
+ *  Font License - https://github.com/LouisT/KiwiIRC-MediaSearch/blob/master/FONT-LICENSE (SIL OFL 1.1)
+ *  CSS License  - https://github.com/LouisT/KiwiIRC-MediaSearch/blob/master/LICENSE (MIT License)
  */
 @font-face {
     font-family: 'MediaSearch';
-    src: url('./fonts/MediaSearch.eot?6ixguz');
-    src: url('./fonts/MediaSearch.eot?6ixguz#iefix') format('embedded-opentype'),
-         url('./fonts/MediaSearch.ttf?6ixguz') format('truetype'),
-         url('./fonts/MediaSearch.woff?6ixguz') format('woff'),
-         url('./fonts/MediaSearch.svg?6ixguz#MediaSearch') format('svg');
+    src: url('./fonts/MediaSearch.eot');
+    src: url('./fonts/MediaSearch.eot#iefix') format('embedded-opentype'),
+         url('./fonts/MediaSearch.ttf') format('truetype'),
+         url('./fonts/MediaSearch.woff2') format('woff2'),
+         url('./fonts/MediaSearch.woff') format('woff'),
+         url('./fonts/MediaSearch.svg#MediaSearch') format('svg');
     font-weight: normal;
     font-style: normal;
 }
@@ -41,41 +43,54 @@
 .ms-5x {
     font-size: 5em;
 }
+
+/*!
+ *  The following are custom icons for this font.
+ */
+.ms-coub:before {
+    content: "\e90a";
+}
 .ms-giphy:before {
-    content: "\e900";
+    content: "\e90b";
+}
+.ms-imgur:before {
+    content: "\e90c";
+}
+.ms-gfycat:before {
+    content: "\e90d";
 }
 
 /*!
  *  The following are copied from the fantastic font:
- *  Font Awesome 4.5.0 by @davegandy - http://fontawesome.io/
+ *  Font Awesome by @davegandy - http://fontawesome.io/
  */
-.ms-mixcloud:before {
-    content: "\f289";
-}
-.ms-youtube:before {
-    content: "\f167";
-}
-.ms-stack-overflow:before {
-    content: "\f16c";
+.ms-500px:before {
+    content: "\e900";
 }
 .ms-instagram:before {
-    content: "\f16d";
-}
-.ms-spotify:before {
-    content: "\f1bc";
-}
-.ms-soundcloud:before {
-    content: "\f1be";
-}
-.ms-twitch:before {
-    content: "\f1e8";
+    content: "\e901";
 }
 .ms-lastfm:before {
-    content: "\f202";
+    content: "\e902";
 }
-.ms-500px:before {
-    content: "\f26e";
+.ms-mixcloud:before {
+    content: "\e903";
+}
+.ms-soundcloud:before {
+    content: "\e904";
+}
+.ms-spotify:before {
+    content: "\e905";
+}
+.ms-stack-overflow:before {
+    content: "\e906";
+}
+.ms-twitch:before {
+    content: "\e907";
 }
 .ms-vimeo:before {
-    content: "\f27d";
+    content: "\e908";
+}
+.ms-youtube:before {
+    content: "\e909";
 }
