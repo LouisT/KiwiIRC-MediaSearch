@@ -5,6 +5,7 @@
   [Required API Keys]
   500px:        https://500px.com/settings/applications
   Giphy:        https://github.com/Giphy/GiphyAPI
+  Imgur:        https://api.imgur.com/
   Instagram:    https://www.instagram.com/developer/
   Last.fm:      http://www.last.fm/api
   SoundCloud:   http://soundcloud.com/you/apps
@@ -22,13 +23,34 @@ var MediaSearch = {
            name: '500px',
            // API key is required.
            apikey: '',
-           // Usable search provider?
-           enabled: true
+           // Usable search provider? (false without API key)
+           enabled: false
+       },
+       coub: {
+           status: false,
+           name: 'Coub',
+           enabled: true,
+           /*
+              This is the display toggle. Any API that requires a CORS proxy needs this. 
+              Do not remove or change this variable, it can break things.
+           */
+           proxied: true
        },
        giphy: {
            status: false,
            name: 'Giphy',
            apikey: 'dc6zaTOxFJmzC',
+           enabled: true
+       },
+       gfycat: {
+           status: false,
+           name: 'Gfycat',
+           enabled: true
+       },
+       imgur: {
+           status: false,
+           name: 'Imgur',
+           apikey: 'ec08fb234c609fb',
            enabled: true
        },
        instagram: {
@@ -104,7 +126,33 @@ var MediaSearch = {
     ],
 
     // A 1px image placeholder.
-    placeholder: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+    placeholder: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
+
+    /*
+      Some providers (Looking at you, Coub!) do not provide CORS or a callback.
+      This is the best way to support a provider at this time. If you wish to disable
+      the use of proxies, just set cors.enabled to false. Please be aware, NO content
+      besides the provider links are sent to any of the proxies. The more proxies the less
+      chance for failure!
+    */
+    corsproxy: {
+        enabled: true,
+        proxies: [
+            'https://jsonp.afeld.me/?url={{:URL}}',
+            'https://crossorigin.me/{{:URL}}',
+            'https://cors.5apps.com/?uri={{:URL}}',
+            'https://cors-anywhere.herokuapp.com/{{:URL}}',
+            'https://allow-any-origin.appspot.com/{{:URL}}',
+
+            // [<proxy url>, <content filter function>],
+            ['https://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20json%20where%20url%3D%22{{:URL_ENC}}%22&format=json', function (data) {
+                return (((data.query||{}).results||{}).json);
+            }],
+            ['https://anyorigin.com/get/?url={{:URL_ENC}}&callback=?', function (data) {
+                return (data.contents||{});
+            }],
+        ],
+    }
 }
 </script>
 <style>
@@ -192,6 +240,7 @@ var MediaSearch = {
         background-color: rgba(0,0,0,0.7);
         width: auto;
         padding: 5px;
+        pointer-events: none;
     }
     #kiwi .ms-wrapper .list .toggle {
         margin: 5px !important;
@@ -222,8 +271,17 @@ var MediaSearch = {
         width: 100%;
         display: inline-block;
     }
+    #kiwi .ms-wrapper .list .gif:before {
+        position: absolute;
+        content: 'GIF';
+        font-size: 20px;
+        bottom: 0;
+        right: 0;
+        padding: 5px;
+        pointer-events: none;
+    }
     #kiwi .ms-wrapper .list .ms-providers {
-        width: 60%;
+        width: 85%;
     }
     #kiwi .ms-wrapper .list h6 {
         margin-bottom: 0px;
@@ -286,7 +344,7 @@ var MediaSearch = {
            console.log('Failed to load gapi! "YTS" plugin nonfunctional.');
          } else if (global['gapi'] && global['gapi'].client) {
            global['gapi'].client.setApiKey($MS.apis.youtube.apikey);
-           global['gapi'].client.load("youtube", "v3", function () {
+           global['gapi'].client.load('youtube', 'v3', function () {
                if ($MS.apis.youtube.__trigger) {
                   $MS.apis.youtube.status = true;
                   $('.ms-wrapper .list .toggle.ms-youtube').css('color','#88C56A');
@@ -310,6 +368,9 @@ var MediaSearch = {
     $.each(_.keys($MS.apis), function (idx, key) {
         if (!$MS.apis[key].enabled) {
            $MS.apis[key].status = false;
+        }
+        if ($MS.apis[key].proxied && !$MS.corsproxy.enabled) {
+           $MS.apis[key].enabled = $MS.apis[key].status = false;
         }
     });
     bindSearchInputs($MS);
@@ -398,6 +459,51 @@ var MediaSearch = {
            }).fail(onFailure($MS.apis['500px'].name)));
         }
 
+        // Coub
+        if ($MS.apis['coub'].status && $MS.corsproxy.enabled) {
+           var proxies = getProxyProviders(),
+               endpoint = ['https://coub.com/api/v2/search?q=', encodeURIComponent(val), '&order_by=newest_popular'].join('');
+           (function coubRequest (pid, proxy, filter) {
+               if ((proxy = proxies[pid])) {
+                  if (Array.isArray(proxy)) {
+                     filter = proxy[1];
+                     proxy = proxy[0];
+                  }
+                  var req = formatter(proxy, { URL: endpoint, URL_ENC: encodeURIComponent(endpoint) });
+               }
+               if (req) {
+                  $MS.__requests.push($.ajax({
+                      url: req,
+                      dataType: 'json',
+                   }).done(function (json) {
+                      if (filter) {
+                         json = filter(json);
+                      }
+                      if (json.coubs && json.coubs.length >= 1) {
+                         var html = [];
+                         $.each(json.coubs, function (index, item) {
+                             if (item.permalink) {
+                                var link = ['https://coub.com/view/', item.permalink].join(''),
+                                    img = (item.small_picture||$MS.placeholder);
+                                html.push([
+                                    '<span class="thumbnail coub tooltip" data-title="', $('<div />').html(item.title||'N/A').text(), '" data-link="', link,
+                                    '"><img src="', img, '" /><div class="icon"><i class="ms ms-coub ms-2x"></i></div></span>'
+                                ].join(''));
+                             }
+                         });
+                         displayResults('coub', html);
+                       } else {
+                         onFailure($MS.apis['coub'].name)();
+                      }
+                   }).fail(function () {
+                      return (proxies[pid+1]?coubRequest:onFailure($MS.apis['coub'].name))(++pid);
+                  }));
+                } else {
+                  onFailure($MS.apis['coub'].name)();
+               }
+           })(0);
+        }
+
         // Giphy
         if ($MS.apis['giphy'].status) {
            $MS.__requests.push($.ajax({
@@ -412,7 +518,7 @@ var MediaSearch = {
                          var title = $('<div />').html([(item.slug||'N/A'), ' - Rated: ', (item.rating||'N/A')].join('')).text(),
                              imgs = { still: item.images.original_still.url, hover: item.images.original.url };
                          html.push([
-                             '<span class="thumbnail giphy tooltip" data-title="', title, '" data-link="', item.url,
+                             '<span class="thumbnail giphy gif tooltip" data-title="', title, '" data-link="', item.url,
                              '"><img src="', imgs.still, '" data-still="', imgs.still, '" data-hover="', imgs.hover,
                              '" /><div class="icon"><i class="', 'ms ms-giphy ms-2x"></i></div></span>'
                          ].join(''));
@@ -420,14 +526,84 @@ var MediaSearch = {
                   });
                   displayResults('giphy', html);
                   $('.giphy img').hover(function () {
-                      $(this).attr("src", $(this).attr('data-hover'));
+                      $(this).attr('src', $(this).attr('data-hover'));
                    }, function () {
-                      $(this).attr("src", $(this).attr('data-still'));
+                      $(this).attr('src', $(this).attr('data-still'));
                   });
                 } else {
                   onFailure($MS.apis['giphy'].name)();
                }
            }).fail(onFailure($MS.apis['giphy'].name)));
+        }
+
+        // Gfycat
+        if ($MS.apis['gfycat'].status) {
+           $MS.__requests.push($.ajax({
+               url: ['https://api.gfycat.com/v1/gfycats/search?search_text=', encodeURIComponent(val),
+                     '&count=', $MS.limit.current].join(''),
+               dataType: 'json',
+            }).done(function (json) {
+               if (json.gfycats && json.gfycats.length >= 1) {
+                  var html = [];
+                  $.each(json.gfycats, function (index, item) {
+                      if (item.gfyName) {
+                         var title = $('<div />').html([(item.title||'N/A'), ' - NSFW: ', (item.nsfw?'yes':'no')].join('')).text(),
+                             imgs = { still: item.posterUrl, hover: item.gifUrl },
+                             link = ['https://gfycat.com/', item.gfyName].join('');
+                         html.push([
+                             '<span class="thumbnail gfycat gif tooltip" data-title="', title, '" data-link="', link,
+                             '"><img src="', imgs.still, '" data-still="', imgs.still, '" data-hover="', imgs.hover,
+                             '" /><div class="icon"><i class="', 'ms ms-gfycat ms-2x"></i></div></span>'
+                         ].join(''));
+                      }
+                  });
+                  displayResults('gfycat', html);
+                  $('.gfycat img').hover(function () {
+                      $(this).attr('src', $(this).attr('data-hover'));
+                   }, function () {
+                      $(this).attr('src', $(this).attr('data-still'));
+                  });
+                } else {
+                  onFailure($MS.apis['gfycat'].name)();
+               }
+           }).fail(onFailure($MS.apis['gfycat'].name)));
+        }
+
+        // Imgur
+        if ($MS.apis.imgur.status) {
+           $MS.__requests.push($.ajax({
+               url: ['https://api.imgur.com/3/gallery/search/time/1?q=', encodeURIComponent(val)].join(''),
+               dataType: 'json',
+               headers: {
+                   'Authorization': ['Client-ID ', $MS.apis['imgur'].apikey].join(''),
+               },
+            }).done(function (json) {
+               if (json.data && json.data.length >= 1) {
+                  var html = [];
+                  json.data = json.data.filter(function (obj) {
+                      return !obj.is_album;
+                  });
+                  $.each(json.data.slice(0, $MS.limit.current), function (index, item) {
+                      if (item.link) {
+                         var isgif = (item.type && item.type == 'image/gif'),
+                             img = (isgif?$MS.placeholder:item.link);
+                         html.push([
+                             '<span class="thumbnail imgur', (isgif?' gif':''), ' tooltip" data-title="', item.title, ' - ',
+                             (item.account_url||'N/A'), '" data-link="', item.link, '"><img src="', img, '" data-still="', $MS.placeholder,
+                             '" data-hover="', item.link, '" /><div class="icon">', '<i class="ms ms-imgur ms-2x"></i></div></span>'
+                         ].join(''));
+                      }
+                  });
+                  displayResults('imgur', html);
+                  $('.imgur.gif img').hover(function () {
+                      $(this).attr('src', $(this).attr('data-hover'));
+                   }, function () {
+                      $(this).attr('src', $(this).attr('data-still'));
+                  });
+                } else {
+                  onFailure($MS.apis['imgur'].name)();
+               }
+           }).fail(onFailure($MS.apis['imgur'].name)));
         }
 
         // Instagram
@@ -648,11 +824,11 @@ var MediaSearch = {
         // YouTube
         if ($MS.apis.youtube.status) {
            var req = global['gapi'].client.youtube.search.list({
-               part: "snippet",
-               type: "video",
+               part: 'snippet',
+               type: 'video',
                q: val,
                maxResults: $MS.limit.current,
-               order: "viewCount"
+               order: 'viewCount'
            });
            /*
               The GAPI client does not have an abort funtion for some reason!?
@@ -770,12 +946,15 @@ var MediaSearch = {
                     return (values[key]?values[key]:(opt?opt:match));
              });
     }
-
+    function getProxyProviders () {
+             // Shuffle the CORS proxy list so no one specific provider is spammed.
+             return _.shuffle((global['MediaSearch'].corsproxy||{}).proxies);
+    }
 
     // Embed solutions for missing embeds.
     var embeds = [
         // Instagram has https://platform.instagram.com/en_US/embeds.js for managing embeds, this works better if we include it first.
-        ['Instagram',/https?:\/\/(www.)?instagr\.?am(\.com)?\/p\/([a-z0-9]+)\/?/i,'https://api.instagram.com/oembed/?omitscript=true&callback=?&url=','rich',function (elm, data) {
+        ['Instagram',/https?:\/\/(www.)?instagr\.?am(\.com)?\/p\/([a-z0-9]+)\/?/i,'https://api.instagram.com/oembed/?omitscript=true&callback=?&url=','rich',function (embed, elm, data) {
             // Process Instagram embeds.
             (function insProccess () {
                 if (global.instgrm) {
@@ -784,8 +963,13 @@ var MediaSearch = {
                 } else { setTimeout(insProcess, 500); }
             })();
         }],
-        ['Mixcloud',/https?:\/\/(www\.)?mixcloud.com\/(.[^\/]+)\/(.+)/i,'https://www.mixcloud.com/oembed/?callback=?&url=','rich'],
-        ['Vimeo',/^https?:\/\/vimeo.com\/(\d+|\w+\/\w+)\/?/i,'https://vimeo.com/api/oembed.json?maxwidth=480&maxheight=270&url=','video'],
+        ['Mixcloud',/https?:\/\/(www\.)?mixcloud\.com\/(.[^\/]+)\/(.+)/i,'https://www.mixcloud.com/oembed/?callback=?&url=','rich'],
+        ['Vimeo',/^https?:\/\/vimeo\.com\/(\d+|\w+\/\w+)\/?/i,'https://vimeo.com/api/oembed.json?maxwidth=480&maxheight=270&url=','video'],
+        ['Coub',/https?:\/\/(www\.)?coub\.com\/view\/([a-z0-9]+)/i,'https://coub.com/api/oembed.json?maxwidth=480&maxhight=270&url=','video', null, true],
+        ['Gfycat',/https?:\/\/(?:www\.)?gfycat\.com\/([a-z]+)/i,'https://api.gfycat.com/v1/oembed?url=','video', function (embed, elm, data, url) {
+            // The oembed result from gfycat is annoying to use, create a custom iframe! Make the request to verfy the url.
+            elm.replaceWith($('<iframe />').attr('src', ['https://gfycat.com/ifr/', url.match(embed[1])[1]].join('')).css({ width: '480px', height: '270px' }));
+        }]
     ];
     if (window['MediaSearch'].apis['giphy'].enabled) {
        var settings = [
@@ -809,28 +993,48 @@ var MediaSearch = {
         kiwi.addMediaMessageType(function(url) {
             return embed[1].test(url);
          },function (url) {
-            var elm = $('<i class="fa fa-spinner fa-spin fa-3x"></i>');
+            var elm = $('<i class="fa fa-spinner fa-spin fa-3x"></i>'),
+                url = (typeof embed[3] === 'function'?url.match(embed[1])[1]:url),
+                endpoint = (typeof embed[2] === 'function'?embed[2](embed, url):embed[2]+url),
+                tryProxies = (embed[5] && global['MediaSearch'].corsproxy.enabled),
+                proxies = getProxyProviders();
 
-            // If it's not oEmbed, pull the content identifier to query an API.
-            var url = (typeof embed[3] === 'function'?url.match(embed[1])[1]:url);
-
-            $.getJSON((typeof embed[2] === 'function'?embed[2](embed, url):url)).done(function (data) {
-                if (typeof embed[3] !== 'function') {
-                   if (data.type === embed[3] && data.html) {
-                      if (embed[4] && typeof embed[4] === 'function') {
-                         embed[4](elm, data);
-                       } else {
-                         elm.replaceWith($(data.html));
+            (function makeRequest (pid, embed, proxy, filter) {
+                if (tryProxies) {
+                   if ((proxy = proxies[pid])) {
+                      if (Array.isArray(proxy)) {
+                         filter = proxy[1];
+                         proxy = proxy[0];
                       }
+                      var req = formatter(proxy, { URL: endpoint, URL_ENC: encodeURIComponent(endpoint) });
                     } else {
-                      elm.replaceWith($('<h6>Invalid response from '+oembed[0]+'!</h6>'));
+                      tryProxies = false;
                    }
-                 } else {
-                   embed[3](embed, elm, data);
                 }
-             }).fail(function () {
-                elm.replaceWith($('<h6>Could not connect to '+oembed[0]+'!</h6>'));
-            });
+                $.getJSON((req?req:endpoint)).done(function (data) {
+                    if (filter) {
+                       data = filter(data);
+                    }
+                    if (!data || !Object.keys(data).length) {
+                       return elm.replaceWith($('<h6>No content from '+embed[0]+'!</h6>'));
+                    }
+                    if (typeof embed[3] !== 'function') {
+                       if (data.type && data.type === embed[3] && data.html) {
+                          if (embed[4] && typeof embed[4] === 'function') {
+                             embed[4](embed, elm, data, endpoint);
+                           } else {
+                             elm.replaceWith($(data.html));
+                          }
+                        } else {
+                          elm.replaceWith($('<h6>'+(data.error?data.error:'No embed from '+embed[0]+'!')+'</h6>'));
+                       }
+                     } else {
+                       embed[3](embed, elm, data, url);
+                    }
+                 }).fail(function () {
+                    return (tryProxies?makeRequest(++pid, embed):elm.replaceWith($('<h6>Could not connect to '+embed[0]+'!</h6>')));
+                });
+            })(0, embed);
             return elm;
         });
     });

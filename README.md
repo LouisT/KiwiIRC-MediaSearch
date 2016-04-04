@@ -6,7 +6,10 @@ This plugin allows users to search different media providers directly from [Kiwi
 
 #### Providers:
 * 500px            - https://500px.com/settings/applications
+* Coub             - https://coub.com/dev/docs/Coub+API/Overview
 * Giphy            - https://github.com/Giphy/GiphyAPI
+* Gfycat           - https://gfycat.com/api
+* Imgur            - https://api.imgur.com/
 * Instagram        - https://www.instagram.com/developer/
 * Last.fm          - http://www.last.fm/api
 * Mixcloud         - https://www.mixcloud.com/developers/
@@ -39,12 +42,11 @@ License
 -
 Copyright 2016 [Louis T.]
 
-Code licensed under the MIT License: http://opensource.org/licenses/MIT
-CSS licensed under the MIT License: http://opensource.org/licenses/MIT
-Font licensed under the SIL OFL 1.1 License: https://scripts.sil.org/OFL
+Code licensed under the MIT License: http://opensource.org/licenses/MIT / [LICENSE](LICENSE)
+
+CSS licensed under the MIT License: http://opensource.org/licenses/MIT / [LICENSE](LICENSE)
+
+Font licensed under the SIL OFL 1.1 License: https://scripts.sil.org/OFL / [FONT-LICENSE](FONT-LICENSE)
 
 [Kiwi IRC]: https://kiwiirc.com/
-[Font Awesome]: https://fortawesome.github.io/Font-Awesome/
-[BootstrapCDN]: http://www.bootstrapcdn.com/#fontawesome_tab
-[MaxCDN]: https://www.maxcdn.com/
 [Louis T.]: https://ltdev.im/
