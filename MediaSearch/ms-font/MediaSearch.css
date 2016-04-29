@@ -1,5 +1,5 @@
 /*!
- *  MediaSearch 1.0.1 by @Loueypoo - https://github.com/LouisT/KiwiIRC-MediaSearch/
+ *  MediaSearch 1.0.2 by @Loueypoo - https://github.com/LouisT/KiwiIRC-MediaSearch/
  *  Font License - https://github.com/LouisT/KiwiIRC-MediaSearch/blob/master/FONT-LICENSE (SIL OFL 1.1)
  *  CSS License  - https://github.com/LouisT/KiwiIRC-MediaSearch/blob/master/LICENSE (MIT License)
  */
@@ -48,16 +48,22 @@
  *  The following are custom icons for this font.
  */
 .ms-coub:before {
-    content: "\e90a";
-}
-.ms-giphy:before {
     content: "\e90b";
 }
-.ms-imgur:before {
+.ms-gfycat:before {
     content: "\e90c";
 }
-.ms-gfycat:before {
+.ms-giphy:before {
     content: "\e90d";
+}
+.ms-imgur:before {
+    content: "\e90e";
+}
+.ms-jamendo:before {
+    content: "\e90f";
+}
+.ms-pixabay:before {
+    content: "\e910";
 }
 
 /*!
@@ -67,30 +73,33 @@
 .ms-500px:before {
     content: "\e900";
 }
-.ms-instagram:before {
+.ms-deviantart:before {
     content: "\e901";
 }
-.ms-lastfm:before {
+.ms-instagram:before {
     content: "\e902";
 }
-.ms-mixcloud:before {
+.ms-lastfm:before {
     content: "\e903";
 }
-.ms-soundcloud:before {
+.ms-mixcloud:before {
     content: "\e904";
 }
-.ms-spotify:before {
+.ms-soundcloud:before {
     content: "\e905";
 }
-.ms-stack-overflow:before {
+.ms-spotify:before {
     content: "\e906";
 }
-.ms-twitch:before {
+.ms-stack-overflow:before {
     content: "\e907";
 }
-.ms-vimeo:before {
+.ms-twitch:before {
     content: "\e908";
 }
-.ms-youtube:before {
+.ms-vimeo:before {
     content: "\e909";
+}
+.ms-youtube:before {
+    content: "\e90a";
 }

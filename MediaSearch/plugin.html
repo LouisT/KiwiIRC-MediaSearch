@@ -7,7 +7,9 @@
   Giphy:        https://github.com/Giphy/GiphyAPI
   Imgur:        https://api.imgur.com/
   Instagram:    https://www.instagram.com/developer/
+  Jamendo:      https://developer.jamendo.com/v3.0
   Last.fm:      http://www.last.fm/api
+  Pixabay:      https://pixabay.com/api/docs/
   SoundCloud:   http://soundcloud.com/you/apps
   Vimeo:        https://developer.vimeo.com/apps
   YouTube:      https://developers.google.com/youtube/v3/getting-started
@@ -15,7 +17,7 @@
 var MediaSearch = {
     // API settings, object key is the 'MediaSearch' font value.
     // NOTE: Any service listed above requires an API key.
-    apis: {
+    providers: {
        '500px': {
            // Search by default?
            status: false,
@@ -23,7 +25,7 @@ var MediaSearch = {
            name: '500px',
            // API key is required.
            apikey: '',
-           // Usable search provider? (false without API key)
+           // Usable search provider?
            enabled: false
        },
        coub: {
@@ -36,9 +38,24 @@ var MediaSearch = {
            */
            proxied: true
        },
+       deviantart: {
+           status: false, 
+           name: 'DeviantArt',
+           enabled: true,
+           /*
+              The only way to search DeviantArt is with RSS feeds. To use these, we must proxy though YQL.
+              If you disable the `corsproxy` setting below, this will also disable this provider. This also
+              uses `corsproxy` providers for oEmbed because apparently DeviantArt can't header.
+           */
+           proxied: true 
+       },
        giphy: {
            status: false,
            name: 'Giphy',
+           /*
+              This is the Giphy public BETA key, you should probably try to get a production key.
+              Read more about that here: https://github.com/Giphy/GiphyAPI#access-and-api-keys
+           */
            apikey: 'dc6zaTOxFJmzC',
            enabled: true
        },
@@ -50,6 +67,10 @@ var MediaSearch = {
        imgur: {
            status: false,
            name: 'Imgur',
+           /*
+              This API key is dedicated to this plugin.
+              Feel free to use it on your Kiwi IRC instance.
+           */
            apikey: 'ec08fb234c609fb',
            enabled: true
        },
@@ -58,6 +79,16 @@ var MediaSearch = {
            name: 'Instagram',
            apikey: '',
            enabled: false
+       },
+       jamendo: {
+           status: false,
+           name: 'Jamendo',
+           /*
+              This API key (client_id) is dedicated to this plugin.
+              Feel free to use it on your Kiwi IRC instance.
+           */
+           apikey: 'c55ac105',
+           enabled: true
        },
        lastfm: {
            status: false,
@@ -70,10 +101,16 @@ var MediaSearch = {
            name: 'Mixcloud',
            enabled: true
        },
+       pixabay: {
+           status: false,
+           name: 'Pixabay',
+           apikey: '',
+           enabled: false
+       },
        soundcloud: {
            status: false,
            name: 'SoundCloud',
-           apikey: '',
+           apikey: 'false',
            enabled: false
        },
        spotify: {
@@ -145,10 +182,10 @@ var MediaSearch = {
             'https://allow-any-origin.appspot.com/{{:URL}}',
 
             // [<proxy url>, <content filter function>],
-            ['https://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20json%20where%20url%3D%22{{:URL_ENC}}%22&format=json', function (data) {
+            ['https://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20json%20where%20url%3D%22{{:EURL}}%22&format=json', function (data) {
                 return (((data.query||{}).results||{}).json);
             }],
-            ['https://anyorigin.com/get/?url={{:URL_ENC}}&callback=?', function (data) {
+            ['https://anyorigin.com/get/?url={{:EURL}}&callback=?', function (data) {
                 return (data.contents||{});
             }],
         ],
@@ -295,7 +332,8 @@ var MediaSearch = {
         width: 10%;
         padding-top: 0px;
     }
-    #kiwi .ms-wrapper .list .tooltip:hover:after {
+    #kiwi .ms-wrapper .list .tooltip:hover:after,
+    #kiwi .content.tooltip:hover:after {
         font-size: 16px;
         border: 1px solid;
         padding: 6px;
@@ -304,9 +342,27 @@ var MediaSearch = {
         background: rgba(0,0,0,.85);
         content: attr(data-title);
         position: fixed;
+        z-index: 1000;
+     }
+     #kiwi .ms-wrapper .list .tooltip:hover:after {
         bottom: 0;
         right: 0;
-        z-index: 1000;
+     }
+     #kiwi .content img.ms {
+        display: block;
+        width: 150px;
+        height: 150px;
+     }
+     #kiwi .content .ms-dl {
+        font-size: 25px;
+        color: gray;
+     }
+     #kiwi .ms-jamendo-tog {
+        color: gray;
+        font-size: 25px;
+        padding-top: 10px;
+        padding-right: 10px;
+        cursor: pointer;
      }
 </style>
 <script>
@@ -327,6 +383,29 @@ var MediaSearch = {
         control = kiwi.components.ControlInput(),
         area =  $('#kiwi .controlbox textarea'),
         msstart = '<center><h5 class="ms-start-label">Search...</h5></center><input class="ms-start"/>';
+    // Setup an audio element for playing demos and other audio types.
+    $MS.__audioSupport = (function (a) {
+        return ((typeof a.canPlayType === 'function' && a.canPlayType('audio/mpeg;codecs=mp3') !== '')?a:false);
+    })(document.createElement('audio'));
+    if ($MS.__audioSupport) {
+       $MS.__audioSupport.addEventListener('ended', function () {
+           this.currentTime = 0;
+           $('.ms-audio-player').removeClass('fa-pause').addClass('fa-play');
+       }, false);
+       $(document).on('click', '.ms-audio-player', function () {
+           var $elm = $(this);
+           if ($MS.__audioSupport.src !== $elm.attr('data-src')) {
+              $('.ms-audio-player').removeClass('fa-pause').addClass('fa-play');
+              $MS.__audioSupport.pause();
+              $MS.__audioSupport.src = $elm.attr('data-src');
+              $MS.__audioSupport.play();
+              $elm.toggleClass('fa-play fa-pause');
+            } else {
+              $MS.__audioSupport[($MS.__audioSupport.paused?'play':'pause')]();
+              $elm.toggleClass('fa-play fa-pause');
+           }
+       });
+    }
     $MS.__requests = [];
     $MS.__autocompletes = [];
     $MS.limit.current = ~~($MS.limit.max - ($MS.limit.max - $MS.limit.min) / 2);
@@ -335,18 +414,18 @@ var MediaSearch = {
         mediabox.show().css({bottom: ($('.controlbox').outerHeight())+'px', right: 0});
         $('.ms-wrapper .list .ms-start').focus();
     }));
-    if ($MS.apis.youtube.status) {
-       $MS.apis.youtube.status = false;
-       $MS.apis.youtube.__trigger = true;
+    if ($MS.providers.youtube.status) {
+       $MS.providers.youtube.status = false;
+       $MS.providers.youtube.__trigger = true;
     }
     (function hasGapi (gapiCounter) {
         if (gapiCounter++ >= 100) {
            console.log('Failed to load gapi! "YTS" plugin nonfunctional.');
          } else if (global['gapi'] && global['gapi'].client) {
-           global['gapi'].client.setApiKey($MS.apis.youtube.apikey);
+           global['gapi'].client.setApiKey($MS.providers.youtube.apikey);
            global['gapi'].client.load('youtube', 'v3', function () {
-               if ($MS.apis.youtube.__trigger) {
-                  $MS.apis.youtube.status = true;
+               if ($MS.providers.youtube.__trigger) {
+                  $MS.providers.youtube.status = true;
                   $('.ms-wrapper .list .toggle.ms-youtube').css('color','#88C56A');
                }
            });
@@ -365,12 +444,12 @@ var MediaSearch = {
         mediabox.hide();
         $('.ms-wrapper .undo').click();
     });
-    $.each(_.keys($MS.apis), function (idx, key) {
-        if (!$MS.apis[key].enabled) {
-           $MS.apis[key].status = false;
+    $.each(_.keys($MS.providers), function (idx, key) {
+        if (!$MS.providers[key].enabled) {
+           $MS.providers[key].status = false;
         }
-        if ($MS.apis[key].proxied && !$MS.corsproxy.enabled) {
-           $MS.apis[key].enabled = $MS.apis[key].status = false;
+        if ($MS.providers[key].proxied && !$MS.corsproxy.enabled) {
+           $MS.providers[key].enabled = $MS.providers[key].status = false;
         }
     });
     bindSearchInputs($MS);
@@ -400,8 +479,8 @@ var MediaSearch = {
                }
             }, (val?500:5000));
         });
-        $.each(_.keys($MS.apis), function (index, key) {
-            var obj = $MS.apis[key];
+        $.each(_.keys($MS.providers), function (index, key) {
+            var obj = $MS.providers[key];
             if (obj.enabled) {
                var elm = $('<i class="tooltip toggle ms ms-'+key+' ms-3x" data-title="'+obj.name+'"></i>');
                elm.click(function () {
@@ -422,7 +501,7 @@ var MediaSearch = {
         $('.ms-wrapper .list').empty();
         cleanMediaSearch();
         var failed;
-        if (!_.some(_.keys($MS.apis), function (key) { return $MS.apis[key].status; })) {
+        if (!_.some(_.keys($MS.providers), function (key) { return $MS.providers[key].status; })) {
            failed = 'Please enable a search provider in options.';
          } else if ((!val || 0 === val.length || /^\s*$/.test(val))) {
            failed = 'Search must not be empty.';
@@ -432,11 +511,12 @@ var MediaSearch = {
            $('.ms-wrapper .list .ms-start-label').text(failed);
            return bindSearchInputs($MS);
         }
+        var valEnc = encodeURIComponent(val);
 
         // 500px
-        if ($MS.apis['500px'].status) {
+        if ($MS.providers['500px'].status) {
            $MS.__requests.push($.ajax({
-               url: ['https://api.500px.com/v1/photos/search?term=', encodeURIComponent(val), '&consumer_key=', $MS.apis['500px'].apikey,
+               url: ['https://api.500px.com/v1/photos/search?term=', valEnc, '&consumer_key=', $MS.providers['500px'].apikey,
                      '&rpp=', $MS.limit.current].join(''),
                dataType: 'json',
             }).done(function (json) {
@@ -454,22 +534,22 @@ var MediaSearch = {
                   });
                   displayResults('500px', html);
                 } else {
-                  onFailure($MS.apis['500px'].name)();
+                  onFailure($MS.providers['500px'].name)();
                }
-           }).fail(onFailure($MS.apis['500px'].name)));
+           }).fail(onFailure($MS.providers['500px'].name)));
         }
 
         // Coub
-        if ($MS.apis['coub'].status && $MS.corsproxy.enabled) {
+        if ($MS.providers['coub'].status && $MS.corsproxy.enabled) {
            var proxies = getProxyProviders(),
-               endpoint = ['https://coub.com/api/v2/search?q=', encodeURIComponent(val), '&order_by=newest_popular'].join('');
+               endpoint = ['https://coub.com/api/v2/search?q=', valEnc, '&order_by=newest_popular'].join('');
            (function coubRequest (pid, proxy, filter) {
                if ((proxy = proxies[pid])) {
                   if (Array.isArray(proxy)) {
                      filter = proxy[1];
                      proxy = proxy[0];
                   }
-                  var req = formatter(proxy, { URL: endpoint, URL_ENC: encodeURIComponent(endpoint) });
+                  var req = formatter(proxy, { URL: endpoint, EURL: encodeURIComponent(endpoint) });
                }
                if (req) {
                   $MS.__requests.push($.ajax({
@@ -493,21 +573,48 @@ var MediaSearch = {
                          });
                          displayResults('coub', html);
                        } else {
-                         onFailure($MS.apis['coub'].name)();
+                         onFailure($MS.providers['coub'].name)();
                       }
                    }).fail(function () {
-                      return (proxies[pid+1]?coubRequest:onFailure($MS.apis['coub'].name))(++pid);
+                      return (proxies[pid+1]?coubRequest:onFailure($MS.providers['coub'].name))(++pid);
                   }));
                 } else {
-                  onFailure($MS.apis['coub'].name)();
+                  onFailure($MS.providers['coub'].name)();
                }
            })(0);
         }
 
+        // DeviantArt
+        if ($MS.providers['deviantart'].status) {
+            $MS.__requests.push($.ajax({
+               url: ['https://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20rss%20where%20url%3D%27',
+                     'http%3A%2F%2Fbackend.deviantart.com%2Frss.xml%3Fq%3Dsort%3Atime%2520', valEnc,
+                     '%27%20and%20content.medium%20%3D%20%27image%27&format=json'].join(''),
+               dataType: 'json',
+            }).done(function (json) {
+               if (((json.query||{}).results||{item:[]}).item.length >= 1) {
+                  var html = [];
+                  $.each(json.query.results.item, function (index, item) {
+                      if (item.link) {
+                         var title = $('<div />').html(item.title[0]).text(),
+                             img = ((item.thumbnail||[{}])[0].url||$MS.placeholder);
+                         html.push([
+                             '<span class="thumbnail deviantart tooltip" data-title="', title, '" data-link="', item.link, '"><img src="',
+                             img, '" /><div class="icon"><i class="', 'ms ms-deviantart ms-2x"></i></div></span>'
+                         ].join(''));
+                      }
+                  });
+                  displayResults('deviantart', html);
+                } else {
+                  onFailure($MS.providers['deviantart'].name)();
+               }
+           }).fail(onFailure($MS.providers['deviantart'].name)));
+        }
+
         // Giphy
-        if ($MS.apis['giphy'].status) {
+        if ($MS.providers['giphy'].status) {
            $MS.__requests.push($.ajax({
-               url: ['http://api.giphy.com/v1/gifs/search?q=', encodeURIComponent(val), '&api_key=', $MS.apis['giphy'].apikey,
+               url: ['http://api.giphy.com/v1/gifs/search?q=', valEnc, '&api_key=', $MS.providers['giphy'].apikey,
                      '&limit=', $MS.limit.current, '&rating=r'].join(''),
                dataType: 'json',
             }).done(function (json) {
@@ -531,15 +638,15 @@ var MediaSearch = {
                       $(this).attr('src', $(this).attr('data-still'));
                   });
                 } else {
-                  onFailure($MS.apis['giphy'].name)();
+                  onFailure($MS.providers['giphy'].name)();
                }
-           }).fail(onFailure($MS.apis['giphy'].name)));
+           }).fail(onFailure($MS.providers['giphy'].name)));
         }
 
         // Gfycat
-        if ($MS.apis['gfycat'].status) {
+        if ($MS.providers['gfycat'].status) {
            $MS.__requests.push($.ajax({
-               url: ['https://api.gfycat.com/v1/gfycats/search?search_text=', encodeURIComponent(val),
+               url: ['https://api.gfycat.com/v1/gfycats/search?search_text=', valEnc,
                      '&count=', $MS.limit.current].join(''),
                dataType: 'json',
             }).done(function (json) {
@@ -564,18 +671,18 @@ var MediaSearch = {
                       $(this).attr('src', $(this).attr('data-still'));
                   });
                 } else {
-                  onFailure($MS.apis['gfycat'].name)();
+                  onFailure($MS.providers['gfycat'].name)();
                }
-           }).fail(onFailure($MS.apis['gfycat'].name)));
+           }).fail(onFailure($MS.providers['gfycat'].name)));
         }
 
         // Imgur
-        if ($MS.apis.imgur.status) {
+        if ($MS.providers.imgur.status) {
            $MS.__requests.push($.ajax({
-               url: ['https://api.imgur.com/3/gallery/search/time/1?q=', encodeURIComponent(val)].join(''),
+               url: ['https://api.imgur.com/3/gallery/search/time/1?q=', valEnc].join(''),
                dataType: 'json',
                headers: {
-                   'Authorization': ['Client-ID ', $MS.apis['imgur'].apikey].join(''),
+                   'Authorization': ['Client-ID ', $MS.providers['imgur'].apikey].join(''),
                },
             }).done(function (json) {
                if (json.data && json.data.length >= 1) {
@@ -601,16 +708,16 @@ var MediaSearch = {
                       $(this).attr('src', $(this).attr('data-still'));
                   });
                 } else {
-                  onFailure($MS.apis['imgur'].name)();
+                  onFailure($MS.providers['imgur'].name)();
                }
-           }).fail(onFailure($MS.apis['imgur'].name)));
+           }).fail(onFailure($MS.providers['imgur'].name)));
         }
 
         // Instagram
-        if ($MS.apis.instagram.status) {
+        if ($MS.providers.instagram.status) {
            $MS.__requests.push($.ajax({
                url: ['https://api.instagram.com/v1/tags/', val.replace(/[^a-z0-9]+/gi,''), '/media/recent?count=',
-                     $MS.limit.current, '&access_token=', $MS.apis.instagram.apikey, '&callback=?'].join(''),
+                     $MS.limit.current, '&access_token=', $MS.providers.instagram.apikey, '&callback=?'].join(''),
                dataType: 'jsonp',
             }).done(function (json) {
                if (json.data && json.data.length >= 1) {
@@ -626,15 +733,40 @@ var MediaSearch = {
                   });
                   displayResults('instagram', html);
                 } else {
-                  onFailure($MS.apis['instagram'].name)();
+                  onFailure($MS.providers['instagram'].name)();
                }
-           }).fail(onFailure($MS.apis['instagram'].name)));
+           }).fail(onFailure($MS.providers['instagram'].name)));
+        }
+
+        // Jamendo
+        if ($MS.providers.jamendo.status) {
+           $MS.__requests.push($.ajax({
+               url: ['https://api.jamendo.com/v3.0/tracks?search=', valEnc, '&client_id=', $MS.providers.jamendo.apikey,
+                     '&limit=', $MS.limit.current, '&format=json&type=single albumtrack'].join(''),
+               dataType: 'json',
+            }).done(function (json) {
+               if (json.results && json.results.length >= 1) {
+                  var html = [];
+                  $.each(json.results, function (index, item) {
+                      if (item.shorturl) {
+                         var title = [item.name,' / ', item['artist_name'],' (',(item['album_name']||'N/A'),')'].join('');
+                         html.push([
+                             '<span class="thumbnail jamendo tooltip" data-title="', title, '" data-link="', item.shorturl, '"><img src="',
+                             (item.image||$MS.placeholder), '" /><div class="icon"><i class="ms ms-jamendo ms-2x"></i></div></span>'
+                         ].join(''));
+                      }
+                  });
+                  displayResults('jamendo', html);
+                } else {
+                  onFailure($MS.providers['jamendo'].name)();
+               }
+           }).fail(onFailure($MS.providers['jamendo'].name)));
         }
 
         // Last.fm
-        if ($MS.apis.lastfm.status) {
+        if ($MS.providers.lastfm.status) {
            $MS.__requests.push($.ajax({
-               url: ['https://ws.audioscrobbler.com/2.0/?method=track.search&track=', encodeURIComponent(val), '&api_key=', $MS.apis.lastfm.apikey,
+               url: ['https://ws.audioscrobbler.com/2.0/?method=track.search&track=', valEnc, '&api_key=', $MS.providers.lastfm.apikey,
                      '&limit=', $MS.limit.current, '&format=json'].join(''),
                dataType: 'json',
             }).done(function (json) {
@@ -658,15 +790,15 @@ var MediaSearch = {
                   });
                   displayResults('lastfm', html);
                 } else {
-                  onFailure($MS.apis['lastfm'].name)();
+                  onFailure($MS.providers['lastfm'].name)();
                }
-           }).fail(onFailure($MS.apis['lastfm'].name)));
+           }).fail(onFailure($MS.providers['lastfm'].name)));
         }
 
         // Mixcloud
-        if ($MS.apis.mixcloud.status) {
+        if ($MS.providers.mixcloud.status) {
            $MS.__requests.push($.ajax({
-               url: ['https://api.mixcloud.com/search/?q=', encodeURIComponent(val), '&type=cloudcast&limit=', $MS.limit.current].join(''),
+               url: ['https://api.mixcloud.com/search/?q=', valEnc, '&type=cloudcast&limit=', $MS.limit.current].join(''),
                dataType: 'json',
             }).done(function (json) {
                if (json.data && json.data.length >= 1) {
@@ -682,16 +814,40 @@ var MediaSearch = {
                   });
                   displayResults('mixcloud', html);
                 } else {
-                  onFailure($MS.apis['mixcloud'].name)();
+                  onFailure($MS.providers['mixcloud'].name)();
                }
-           }).fail(onFailure($MS.apis['mixcloud'].name)));
+           }).fail(onFailure($MS.providers['mixcloud'].name)));
+        }
+
+        // Pixabay
+        if ($MS.providers.pixabay.status) {
+           $MS.__requests.push($.ajax({
+               url: ['https://pixabay.com/api/?key=', $MS.providers.pixabay.apikey, '&q=', valEnc, '&per_page=',
+                     $MS.limit.current, '&order=latest&image_type=photo'].join(''),
+               dataType: 'json',
+            }).done(function (json) {
+               if (json.hits && json.hits.length >= 1) {
+                  var html = [];
+                  $.each(json.hits, function (index, item) {
+                      if (item.pageURL) {
+                         html.push([
+                             '<span class="thumbnail pixabay tooltip" data-title="', (item.tags||'N/A'), '" data-link="', item.pageURL,
+                             '"><img src="', item.previewURL, '" /><div class="icon"><i class="ms ms-pixabay ms-2x"></i></div></span>'
+                         ].join(''));
+                      }
+                  });
+                  displayResults('pixabay', html);
+                } else {
+                  onFailure($MS.providers['pixabay'].name)();
+               }
+           }).fail(onFailure($MS.providers['pixabay'].name)));
         }
 
         // SoundCloud
-        if ($MS.apis.soundcloud.status) {
+        if ($MS.providers.soundcloud.status) {
            $MS.__requests.push($.ajax({
-               url: ['https://api.soundcloud.com/tracks.json?q=', encodeURIComponent(val), '&limit=', $MS.limit.current,
-                     '&client_id=', $MS.apis.soundcloud.apikey].join(''),
+               url: ['https://api.soundcloud.com/tracks.json?q=', valEnc, '&limit=', $MS.limit.current,
+                     '&client_id=', $MS.providers.soundcloud.apikey].join(''),
                dataType: 'json',
             }).done(function (json) {
                if (json && json.length >= 1) {
@@ -707,15 +863,15 @@ var MediaSearch = {
                   });
                   displayResults('soundcoud', html);
                 } else {
-                  onFailure($MS.apis['soundcloud'].name)();
+                  onFailure($MS.providers['soundcloud'].name)();
                }
-           }).fail(onFailure($MS.apis['soundcloud'].name)));
+           }).fail(onFailure($MS.providers['soundcloud'].name)));
         }
 
         // Spotify
-        if ($MS.apis.spotify.status) {
+        if ($MS.providers.spotify.status) {
            $MS.__requests.push($.ajax({
-               url: ['https://api.spotify.com/v1/search?q=', encodeURIComponent(val), '&type=track&limit=', $MS.limit.current].join(''),
+               url: ['https://api.spotify.com/v1/search?q=', valEnc, '&type=track&limit=', $MS.limit.current].join(''),
                dataType: 'json',
             }).done(function (json) {
                if (json.tracks && json.tracks.items.length >= 1) {
@@ -735,16 +891,16 @@ var MediaSearch = {
                   });
                   displayResults('spotify', html);
                 } else {
-                  onFailure($MS.apis['spotify'].name)();
+                  onFailure($MS.providers['spotify'].name)();
                }
-           }).fail(onFailure($MS.apis['spotify'].name)));
+           }).fail(onFailure($MS.providers['spotify'].name)));
         }
 
         // Stack Overflow
-        if ($MS.apis['stack-overflow'].status) {
+        if ($MS.providers['stack-overflow'].status) {
            $MS.__requests.push($.ajax({
                url: ['https://api.stackexchange.com/2.2/search?order=desc&sort=activity&intitle=',
-                     encodeURIComponent(val), '&site=stackoverflow&pagesize=', $MS.limit.current].join(''),
+                     valEnc, '&site=stackoverflow&pagesize=', $MS.limit.current].join(''),
                dataType: 'json',
             }).done(function (json) {
                if (json.items && json.items.length >= 1) {
@@ -764,15 +920,15 @@ var MediaSearch = {
                   });
                   displayResults('stack-overflow', html);
                 } else {
-                  onFailure($MS.apis['stack-overflow'].name)();
+                  onFailure($MS.providers['stack-overflow'].name)();
                }
-           }).fail(onFailure($MS.apis['stack-overflow'].name)));
+           }).fail(onFailure($MS.providers['stack-overflow'].name)));
         }
 
         // Twitch
-        if ($MS.apis.twitch.status) {
+        if ($MS.providers.twitch.status) {
            $MS.__requests.push($.ajax({
-               url: ['https://api.twitch.tv/kraken/search/channels?q=', encodeURIComponent(val), '&limit=', $MS.limit.current].join(''),
+               url: ['https://api.twitch.tv/kraken/search/channels?q=', valEnc, '&limit=', $MS.limit.current].join(''),
                dataType: 'json',
             }).done(function (json) {
                if (json.channels && json.channels.length >= 1) {
@@ -789,16 +945,16 @@ var MediaSearch = {
                   });
                   displayResults('twitch', html);
                 } else {
-                  onFailure($MS.apis['twitch'].name)();
+                  onFailure($MS.providers['twitch'].name)();
                }
-           }).fail(onFailure($MS.apis['twitch'].name)));
+           }).fail(onFailure($MS.providers['twitch'].name)));
         }
 
         // Vimeo
-        if ($MS.apis.vimeo.status) {
+        if ($MS.providers.vimeo.status) {
            $MS.__requests.push($.ajax({
-               url: ['https://api.vimeo.com/videos?query=', encodeURIComponent(val), '&per_page=', $MS.limit.current,
-                     '&access_token=', $MS.apis.vimeo.apikey].join(''),
+               url: ['https://api.vimeo.com/videos?query=', valEnc, '&per_page=', $MS.limit.current,
+                     '&access_token=', $MS.providers.vimeo.apikey].join(''),
                dataType: 'json',
             }).done(function (json) {
                if (json.data && json.data.length >= 1) {
@@ -816,13 +972,13 @@ var MediaSearch = {
                   });
                   displayResults('vimeo', html);
                 } else {
-                  onFailure($MS.apis['vimeo'].name)();
+                  onFailure($MS.providers['vimeo'].name)();
                }
-           }).fail(onFailure($MS.apis['vimeo'].name)));
+           }).fail(onFailure($MS.providers['vimeo'].name)));
         }
 
         // YouTube
-        if ($MS.apis.youtube.status) {
+        if ($MS.providers.youtube.status) {
            var req = global['gapi'].client.youtube.search.list({
                part: 'snippet',
                type: 'video',
@@ -843,7 +999,7 @@ var MediaSearch = {
            $MS.__requests.push(req);
            req.__callback = function (res) {
                if (res.error || res.items.length <= 0) {
-                  onFailure($MS.apis['youtube'].name)();
+                  onFailure($MS.providers['youtube'].name)();
                 } else {
                   var html = [];
                   $.each(res.result.items, function (index, item) {
@@ -954,7 +1110,7 @@ var MediaSearch = {
     // Embed solutions for missing embeds.
     var embeds = [
         // Instagram has https://platform.instagram.com/en_US/embeds.js for managing embeds, this works better if we include it first.
-        ['Instagram',/https?:\/\/(www.)?instagr\.?am(\.com)?\/p\/([a-z0-9]+)\/?/i,'https://api.instagram.com/oembed/?omitscript=true&callback=?&url=','rich',function (embed, elm, data) {
+        ['Instagram',/https?:\/\/(www.)?instagr\.?am(\.com)?\/p\/([a-z0-9]+)\/?/i,'https://api.instagram.com/oembed/?omitscript=true&callback=?&url={{:url}}','rich',function (embed, elm, data) {
             // Process Instagram embeds.
             (function insProccess () {
                 if (global.instgrm) {
@@ -963,21 +1119,23 @@ var MediaSearch = {
                 } else { setTimeout(insProcess, 500); }
             })();
         }],
-        ['Mixcloud',/https?:\/\/(www\.)?mixcloud\.com\/(.[^\/]+)\/(.+)/i,'https://www.mixcloud.com/oembed/?callback=?&url=','rich'],
-        ['Vimeo',/^https?:\/\/vimeo\.com\/(\d+|\w+\/\w+)\/?/i,'https://vimeo.com/api/oembed.json?maxwidth=480&maxheight=270&url=','video'],
-        ['Coub',/https?:\/\/(www\.)?coub\.com\/view\/([a-z0-9]+)/i,'https://coub.com/api/oembed.json?maxwidth=480&maxhight=270&url=','video', null, true],
-        ['Gfycat',/https?:\/\/(?:www\.)?gfycat\.com\/([a-z]+)/i,'https://api.gfycat.com/v1/oembed?url=','video', function (embed, elm, data, url) {
+        ['Mixcloud',/https?:\/\/(www\.)?mixcloud\.com\/(.[^\/]+)\/(.+)/i,'https://www.mixcloud.com/oembed/?callback=?&url={{:url}}','rich'],
+        ['Vimeo',/^https?:\/\/vimeo\.com\/(\d+|\w+\/\w+)\/?/i,'https://vimeo.com/api/oembed.json?maxwidth=480&maxheight=270&url={{:url}}','video'],
+        ['Coub',/https?:\/\/(www\.)?coub\.com\/view\/([a-z0-9]+)/i,'https://coub.com/api/oembed.json?maxwidth=480&maxhight=270&url={{:url}}','video', null, true],
+        ['Gfycat',/https?:\/\/(?:www\.)?gfycat\.com\/([a-z]+)/i,'https://api.gfycat.com/v1/oembed?url={{:url}}','video', function (embed, elm, data, url) {
             // The oembed result from gfycat is annoying to use, create a custom iframe! Make the request to verfy the url.
             elm.replaceWith($('<iframe />').attr('src', ['https://gfycat.com/ifr/', url.match(embed[1])[1]].join('')).css({ width: '480px', height: '270px' }));
-        }]
+        }],
+        ['DeviantArt',/https?:\/\/(?:(:?.+\.)?deviantart\.com(?:\/art\/(?:.+)|.*#\/d(?:.+))|fav.me\/(?:.+)|sta.sh\/(?:.+))/i,'http://backend.deviantart.com/oembed?url={{:eurl}}','photo',function (embed, elm, data, url) {
+            elm.replaceWith($('<img />').attr('src', (data.url||$MS.placeholder)).css({ height: '150px', width: 'auto' }).attr('title', (data.title||'N/A')));
+        }, true]
     ];
-    if (window['MediaSearch'].apis['giphy'].enabled) {
+    if ($MS.providers['giphy'].enabled) {
        var settings = [
            /https?:\/\/(?:.+?)?giphy.com\/(?:.+?\/?)?(?:(?:.*?)\-)?([a-z0-9]+)(?:\/giphy\.gif)?$/i,
            function (embed, url) {
                 return formatter('https://api.giphy.com/v1/gifs/{{:id}}?api_key={{:apikey}}',{
-                    apikey: window['MediaSearch'].apis['giphy'].apikey,
-                    id: url
+                    apikey: $MS.providers['giphy'].apikey, id: url
                 });
            }
        ];
@@ -989,13 +1147,56 @@ var MediaSearch = {
            }
        }]);
     }
+    if ($MS.__audioSupport && $MS.providers['jamendo'].enabled) {
+       var settings = [
+           /https?:\/\/(?:www\.)?jamen(?:do.com|.do)?\/t(?:rack)?\/(\d+)/i,
+           function (embed, url) {
+                return formatter('https://api.jamendo.com/v3.0/tracks?client_id={{:client_id}}&id={{:id}}',{
+                    client_id: $MS.providers['jamendo'].apikey, id: url
+                });
+           }
+       ];
+       embeds.push(['Jamendo', settings[0], settings[1], function (embed, elm, json, url) {
+           if (json.results && json.results.length >= 1) {
+              var data = json.results[0],
+                  title = [data.name,' / ', data['artist_name'],' (',(data['album_name']||'N/A'),')'].join(''),
+                  html = $([
+                      '<span title="', title, '"><img class="ms" src="', data.image, '" /><i class="ms-audio-player',
+                      ' ms-jamendo-tog fa fa-play" data-src="', data.audio, '"></i><a href="', data.audiodownload,
+                      '" target="_blank"><i class="ms-dl fa fa-download"></a></i></span>'
+                  ].join(''));
+              elm.replaceWith(html);
+            } else {
+              elm.replaceWith($('<i />').html('<h3>Not found.</h3>'));
+           }
+       }]);
+    }
+    if ($MS.providers['pixabay'].enabled) {
+       var settings = [
+           /https?:\/\/pixabay\.com\/(?:\w\w)\/(?:[a-z0-9-]+)-(\d+)\/?$/i,
+           function (embed, url) {
+                return formatter('https://pixabay.com/api/?key={{:key}}&id={{:id}}',{
+                    key: $MS.providers['pixabay'].apikey, id: url
+                });
+           }
+       ];
+       embeds.push(['Pixabay', settings[0], settings[1], function (embed, elm, json) {
+           if (json.hits && json.hits.length >= 1) {
+              elm.replaceWith($('<img />').attr('src', json.hits[0].previewURL).attr('title', json.hits[0].tags).on('click', function () {
+                  window.open(json.hits[0].webformatURL, '_blank').focus();
+              }).css('cursor', 'pointer'));
+            } else {
+              elm.replaceWith($('<i />').html('<h3>Not found.</h3>'));
+           }
+       }]);
+    }
     $.each(embeds, function (index, embed) {
         kiwi.addMediaMessageType(function(url) {
             return embed[1].test(url);
          },function (url) {
             var elm = $('<i class="fa fa-spinner fa-spin fa-3x"></i>'),
                 url = (typeof embed[3] === 'function'?url.match(embed[1])[1]:url),
-                endpoint = (typeof embed[2] === 'function'?embed[2](embed, url):embed[2]+url),
+                endpoint = (typeof embed[2] === 'function'?embed[2](embed, url):formatter(embed[2], { url: url, eurl: encodeURIComponent(url) })),
                 tryProxies = (embed[5] && global['MediaSearch'].corsproxy.enabled),
                 proxies = getProxyProviders();
 
@@ -1006,7 +1207,7 @@ var MediaSearch = {
                          filter = proxy[1];
                          proxy = proxy[0];
                       }
-                      var req = formatter(proxy, { URL: endpoint, URL_ENC: encodeURIComponent(endpoint) });
+                      var req = formatter(proxy, { URL: endpoint, EURL: encodeURIComponent(endpoint) });
                     } else {
                       tryProxies = false;
                    }
@@ -1019,11 +1220,11 @@ var MediaSearch = {
                        return elm.replaceWith($('<h6>No content from '+embed[0]+'!</h6>'));
                     }
                     if (typeof embed[3] !== 'function') {
-                       if (data.type && data.type === embed[3] && data.html) {
+                       if (data.type && data.type === embed[3]) {
                           if (embed[4] && typeof embed[4] === 'function') {
                              embed[4](embed, elm, data, endpoint);
                            } else {
-                             elm.replaceWith($(data.html));
+                             elm.replaceWith($((data.html||'<h3>Invalid response from '+embed[9]+'!</h3>')));
                           }
                         } else {
                           elm.replaceWith($('<h6>'+(data.error?data.error:'No embed from '+embed[0]+'!')+'</h6>'));

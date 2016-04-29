@@ -7,12 +7,15 @@ This plugin allows users to search different media providers directly from [Kiwi
 #### Providers:
 * 500px            - https://500px.com/settings/applications
 * Coub             - https://coub.com/dev/docs/Coub+API/Overview
+* DeviantArt       - https://www.deviantart.com/developers/
 * Giphy            - https://github.com/Giphy/GiphyAPI
 * Gfycat           - https://gfycat.com/api
 * Imgur            - https://api.imgur.com/
 * Instagram        - https://www.instagram.com/developer/
+* Jamendo          - https://developer.jamendo.com/v3.0
 * Last.fm          - http://www.last.fm/api
 * Mixcloud         - https://www.mixcloud.com/developers/
+* Pixabay          - https://pixabay.com/api/docs/
 * SoundCloud       - http://soundcloud.com/you/apps
 * Spotify          - https://developer.spotify.com/web-api/
 * Stack Overflow   - https://api.stackexchange.com/docs
